@@ -6,6 +6,8 @@ Build a production-oriented Python 3.10 supervisor/orchestrator named `new_orche
 
 The system must use `codex exec` as its execution mechanism, but it must not pretend that isolated subprocesses are inherently valuable as "agents" on their own.
 
+Inside a single `codex exec` implementation run, the worker should be encouraged to use multiple internal subagents when that materially improves throughput or quality. Keep that internal delegation bounded and practical rather than theatrical.
+
 The outer Python process exists for operational control:
 
 - unattended batch runs
@@ -50,6 +52,8 @@ Default behavior must be:
 
 - one main implementation worker
 - no helper worker
+
+This outer-process simplicity does not forbid internal subagent use inside the main `codex exec` worker. The orchestrator should stay simple while the worker may still parallelize internally.
 
 A helper worker is allowed only when all of these are true:
 
@@ -166,6 +170,8 @@ The main task must include:
 - forbidden paths or globs
 - validation focus
 
+For frontend-oriented or Next.js work, the owned paths must also include standard framework support files when they may be created or updated, especially `eslint.config.mjs`, `next-env.d.ts`, and `package-lock.json`.
+
 ## Optional helper task
 
 If present, the helper task must include:
@@ -261,6 +267,8 @@ The main worker and optional helper must be instructed to:
 - stay inside their declared editable scope
 - not revert unrelated user changes
 - return a structured JSON result
+- use multiple internal subagents when it materially helps, while keeping final integration responsibility with the worker
+- avoid fake roleplay or org-chart narration when using internal subagents
 
 If a task is frontend-oriented, the worker prompt should explicitly require use of `frontend-skill`.
 

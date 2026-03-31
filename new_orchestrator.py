@@ -60,6 +60,12 @@ DEV_SERVER_SHUTDOWN_GRACE_SECONDS = int(os.getenv("DEV_SERVER_SHUTDOWN_GRACE_SEC
 MAX_JSON_LINE = 8 * 1024 * 1024
 MAX_INFRA_RETRIES = 2
 
+STANDARD_FRONTEND_SUPPORT_FILES = (
+    "eslint.config.mjs",
+    "next-env.d.ts",
+    "package-lock.json",
+)
+
 EXCLUDED_SNAPSHOT_DIRS = {
     ".git",
     "__pycache__",
@@ -810,6 +816,7 @@ Plan requirements:
 - helper run_mode must be `parallel` only if file scopes are disjoint enough to safely run at the same time
 - include real blocking build and runtime proofs when the local repo clearly contains the needed tooling
 - do not use install commands as proofs
+- when planning a frontend or Next.js task, include standard framework support files in owned_paths when they may be created or updated, especially `eslint.config.mjs`, `next-env.d.ts`, and `package-lock.json`
 - final acceptance will be computed from proof results, so choose proofs carefully
 
 Repository file listing sample:
@@ -844,12 +851,50 @@ def task_is_frontend_oriented(task: Dict[str, Any]) -> bool:
     return any(marker in haystack for marker in frontend_markers)
 
 
+def task_needs_node_support_files(task: Dict[str, Any]) -> bool:
+    if task_is_frontend_oriented(task):
+        return True
+    fields: List[str] = [task.get("summary", "")]
+    for key in ("owned_paths", "required_outputs", "validation_focus"):
+        value = task.get(key, [])
+        if isinstance(value, list):
+            fields.extend(str(item) for item in value)
+    haystack = "\n".join(fields).lower()
+    node_markers = ("package.json", "next", "react", "typescript", "npm ")
+    return any(marker in haystack for marker in node_markers)
+
+
+def normalize_task_scope(task: Dict[str, Any]) -> Dict[str, Any]:
+    normalized = dict(task)
+    owned_paths = list(normalized.get("owned_paths", []))
+    if task_needs_node_support_files(normalized):
+        for rel in STANDARD_FRONTEND_SUPPORT_FILES:
+            if rel not in owned_paths:
+                owned_paths.append(rel)
+    normalized["owned_paths"] = owned_paths
+    return normalized
+
+
+def normalize_plan(plan: Dict[str, Any]) -> Dict[str, Any]:
+    normalized = dict(plan)
+    if isinstance(plan.get("main_task"), dict):
+        normalized["main_task"] = normalize_task_scope(plan["main_task"])
+    helper_tasks = plan.get("helper_tasks", [])
+    if isinstance(helper_tasks, list):
+        normalized["helper_tasks"] = [
+            normalize_task_scope(task) if isinstance(task, dict) else task
+            for task in helper_tasks
+        ]
+    return normalized
+
+
 def implementation_prompt(
     worker_name: str,
     task: Dict[str, Any],
     project_brief: str,
     plan_json: str,
 ) -> str:
+    task = normalize_task_scope(task)
     owned_paths = "\n".join(f"- {item}" for item in task["owned_paths"])
     forbidden_paths = "\n".join(f"- {item}" for item in task.get("forbidden_paths", [])) or "- (none)"
     readonly_inputs = "\n".join(f"- {item}" for item in task.get("read_only_inputs", [])) or "- (none)"
@@ -862,6 +907,15 @@ def implementation_prompt(
 Frontend skill requirement:
 - Explicitly use `frontend-skill` for this task.
 - Apply it as the governing rubric for visual, interaction, and layout quality in your owned scope.
+"""
+
+    internal_delegation_section = """
+
+Internal execution requirement:
+- Use multiple internal subagents when it materially improves speed or quality.
+- Parallelize exploration or implementation across disjoint concerns when safe.
+- Keep all edits inside your declared scope and integrate the results yourself.
+- Do not simulate a fake org chart in the final output; just do the work.
 """
 
     return f"""\
@@ -896,6 +950,7 @@ Task summary:
 Validation focus:
 {validation_focus}
 {frontend_skill_section}
+{internal_delegation_section}
 
 Plan:
 {plan_json}
@@ -1199,8 +1254,13 @@ async def stage_planning(project_brief: str) -> Dict[str, Any]:
 
 async def stage_plan_validation(plan_payload: Dict[str, Any]) -> Dict[str, Any]:
     log_step("Stage 3/7: Plan validation")
-    report = validate_plan(plan_payload)
-    write_text(REPORTS_DIR / "plan_validation.json", json.dumps({"status": "valid", "details": report}, indent=2))
+    normalized_plan = normalize_plan(plan_payload)
+    report = validate_plan(normalized_plan)
+    write_text(PLAN_JSON, json.dumps(normalized_plan, indent=2))
+    write_text(
+        REPORTS_DIR / "plan_validation.json",
+        json.dumps({"status": "valid", "details": report, "normalized": True}, indent=2),
+    )
     return report
 
 
@@ -1210,6 +1270,7 @@ async def stage_implementation(
     keep_worktrees: bool,
 ) -> Dict[str, Any]:
     log_step("Stage 4/7: Implementation")
+    plan_payload = normalize_plan(plan_payload)
     main_task = plan_payload["main_task"]
     helper_tasks = plan_payload.get("helper_tasks", [])
     helper_task = helper_tasks[0] if helper_tasks else None
