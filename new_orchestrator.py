@@ -59,6 +59,7 @@ DEV_SERVER_SMOKE_SECONDS = int(os.getenv("DEV_SERVER_SMOKE_SECONDS", "20"))
 DEV_SERVER_SHUTDOWN_GRACE_SECONDS = int(os.getenv("DEV_SERVER_SHUTDOWN_GRACE_SECONDS", "10"))
 MAX_JSON_LINE = 8 * 1024 * 1024
 MAX_INFRA_RETRIES = 2
+MAX_STAGE_REPAIR_ATTEMPTS = int(os.getenv("CODEX_MAX_STAGE_REPAIRS", "2"))
 
 STANDARD_FRONTEND_SUPPORT_FILES = (
     "eslint.config.mjs",
@@ -665,8 +666,34 @@ def worker_result_schema() -> Dict[str, Any]:
     }
 
 
+def repair_result_schema() -> Dict[str, Any]:
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "required": ["final_status", "changed_files", "summary", "root_cause", "followup_required", "blockers"],
+        "properties": {
+            "final_status": {"type": "string", "enum": ["completed", "blocked"]},
+            "changed_files": {"type": "array", "items": narrow_string_schema(1)},
+            "summary": narrow_string_schema(3),
+            "root_cause": narrow_string_schema(3),
+            "followup_required": {"type": "boolean"},
+            "blockers": {"type": "array", "items": narrow_string_schema(3)},
+        },
+    }
+
+
 class PlanValidationError(RuntimeError):
     pass
+
+
+class RepairableStageError(RuntimeError):
+    def __init__(self, stage_name: str, failure_kind: str, detail: Dict[str, Any], original_error: Optional[BaseException] = None):
+        self.stage_name = stage_name
+        self.failure_kind = failure_kind
+        self.detail = detail
+        self.original_error = original_error
+        message = detail.get("error") or f"{stage_name} failed with {failure_kind}"
+        super().__init__(message)
 
 
 def is_relative_pattern(value: str) -> bool:
@@ -886,6 +913,181 @@ def normalize_plan(plan: Dict[str, Any]) -> Dict[str, Any]:
             for task in helper_tasks
         ]
     return normalized
+
+
+def collect_plan_owned_paths(plan_payload: Dict[str, Any]) -> List[str]:
+    normalized = normalize_plan(plan_payload)
+    owned: List[str] = []
+    for task in [normalized.get("main_task")] + list(normalized.get("helper_tasks", [])):
+        if isinstance(task, dict):
+            for rel in task.get("owned_paths", []):
+                if rel not in owned:
+                    owned.append(rel)
+    return owned
+
+
+def collect_plan_readonly_paths(plan_payload: Dict[str, Any]) -> List[str]:
+    normalized = normalize_plan(plan_payload)
+    readonly: List[str] = []
+    for task in [normalized.get("main_task")] + list(normalized.get("helper_tasks", [])):
+        if isinstance(task, dict):
+            for rel in task.get("read_only_inputs", []):
+                if rel not in readonly:
+                    readonly.append(rel)
+    return readonly
+
+
+def read_jsonl_tail(path: Path, limit: int = 20) -> List[Dict[str, Any]]:
+    if not path.exists():
+        return []
+    lines = path.read_text(encoding="utf-8").splitlines()[-limit:]
+    items: List[Dict[str, Any]] = []
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            payload = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(payload, dict):
+            items.append(payload)
+    return items
+
+
+def serialize_failure_detail(detail: Dict[str, Any]) -> str:
+    return json.dumps(detail, indent=2, ensure_ascii=True, sort_keys=True)
+
+
+def repair_prompt(
+    stage_name: str,
+    plan_payload: Dict[str, Any],
+    project_brief: str,
+    failure: RepairableStageError,
+    repair_attempt: int,
+) -> str:
+    editable_scope = "\n".join(f"- {item}" for item in collect_plan_owned_paths(plan_payload)) or "- (none)"
+    readonly_inputs = "\n".join(f"- {item}" for item in collect_plan_readonly_paths(plan_payload)) or "- (none)"
+    frontend_skill_section = ""
+    if task_is_frontend_oriented(normalize_plan(plan_payload).get("main_task", {})):
+        frontend_skill_section = """
+
+Frontend skill requirement:
+- Explicitly use `frontend-skill` for this repair.
+- Apply it when touching UI, layout, styling, or interaction behavior.
+"""
+    return f"""\
+You are the Repair Worker inside a pragmatic Codex supervisor.
+
+Your job is to repair the repository so the failed stage can be re-run successfully.
+
+Rules:
+- fix the repository state directly; do not just explain the issue
+- use only repository state, shared artifacts, and the full Project_description.md below
+- stay inside the editable scope below
+- do not modify read-only inputs
+- make the smallest durable changes needed to unblock the failed stage
+- use multiple internal subagents when it materially helps
+- return only JSON matching the required schema
+
+Failed stage:
+- name: {stage_name}
+- failure_kind: {failure.failure_kind}
+- repair_attempt: {repair_attempt}
+
+Editable scope:
+{editable_scope}
+
+Read-only inputs:
+{readonly_inputs}
+{frontend_skill_section}
+
+Failure context:
+{serialize_failure_detail(failure.detail)}
+
+Normalized plan:
+{json.dumps(normalize_plan(plan_payload), indent=2)}
+
+Project_description.md (full text):
+{project_brief}
+"""
+
+
+def plan_repair_prompt(project_brief: str, current_plan: Dict[str, Any], failure: RepairableStageError, repair_attempt: int) -> str:
+    return f"""\
+You are the Planning Agent inside a pragmatic Codex supervisor/orchestrator.
+
+Your previous plan failed validation. Repair the plan and return only JSON matching the plan schema.
+
+Rules:
+- keep the architecture simple: one main worker by default, at most one helper
+- preserve the original task intent unless the failure forces a narrower or clearer scope
+- ensure required_outputs are covered by owned_paths
+- for frontend or Next.js work, include standard framework support files in owned_paths when they may be created or updated, especially `eslint.config.mjs`, `next-env.d.ts`, and `package-lock.json`
+
+Repair attempt:
+- attempt: {repair_attempt}
+- failure_kind: {failure.failure_kind}
+
+Validation failure context:
+{serialize_failure_detail(failure.detail)}
+
+Current invalid plan:
+{json.dumps(current_plan, indent=2)}
+
+Repository file listing sample:
+{json.dumps(repo_file_listing(), indent=2)}
+
+Project_description.md (full text):
+{project_brief}
+"""
+
+
+async def run_repair_worker(
+    stage_name: str,
+    plan_payload: Dict[str, Any],
+    project_brief: str,
+    failure: RepairableStageError,
+    repair_attempt: int,
+) -> Dict[str, Any]:
+    if stage_name == "Plan validation":
+        schema_path = write_schema("plan_repair_result", plan_schema())
+        prompt = plan_repair_prompt(project_brief, normalize_plan(plan_payload), failure, repair_attempt)
+        result = await run_codex(prompt, cwd=ROOT, schema_path=schema_path)
+        payload = load_json(result.final_text)
+        payload = normalize_plan(payload)
+        write_text(PLAN_JSON, json.dumps(payload, indent=2))
+        append_jsonl(
+            DECISION_LOG,
+            {
+                "timestamp": utc_now(),
+                "type": "repair_plan_completed",
+                "stage_name": stage_name,
+                "repair_attempt": repair_attempt,
+                "failure_kind": failure.failure_kind,
+                "usage": result.usage,
+            },
+        )
+        return payload
+    schema_path = write_schema(f"{slugify(stage_name)}_repair_result", repair_result_schema())
+    prompt = repair_prompt(stage_name, plan_payload, project_brief, failure, repair_attempt)
+    result = await run_codex(prompt, cwd=ROOT, schema_path=schema_path)
+    payload = load_json(result.final_text)
+    append_jsonl(
+        DECISION_LOG,
+        {
+            "timestamp": utc_now(),
+            "type": "repair_attempt_completed",
+            "stage_name": stage_name,
+            "repair_attempt": repair_attempt,
+            "failure_kind": failure.failure_kind,
+            "result": payload,
+            "usage": result.usage,
+        },
+    )
+    if payload.get("final_status") != "completed":
+        raise RuntimeError(f"Repair worker could not complete stage {stage_name}: {payload.get('blockers', [])}")
+    return payload
 
 
 def implementation_prompt(
@@ -1185,6 +1387,40 @@ async def run_proofs(entries: Sequence[Dict[str, Any]], report_name: str) -> Dic
     }
 
 
+async def execute_stage_with_repairs(
+    stage_name: str,
+    plan_payload: Dict[str, Any],
+    project_brief: str,
+    runner,
+) -> Dict[str, Any]:
+    last_error: Optional[RepairableStageError] = None
+    for repair_attempt in range(MAX_STAGE_REPAIR_ATTEMPTS + 1):
+        try:
+            return await runner()
+        except RepairableStageError as exc:
+            last_error = exc
+            append_jsonl(
+                DECISION_LOG,
+                {
+                    "timestamp": utc_now(),
+                    "type": "repairable_stage_failure",
+                    "stage_name": stage_name,
+                    "repair_attempt": repair_attempt,
+                    "failure_kind": exc.failure_kind,
+                    "detail": exc.detail,
+                },
+            )
+            if repair_attempt >= MAX_STAGE_REPAIR_ATTEMPTS:
+                break
+            log_step(f"Repair loop: {stage_name} (attempt {repair_attempt + 1}/{MAX_STAGE_REPAIR_ATTEMPTS})")
+            repair_payload = await run_repair_worker(stage_name, plan_payload, project_brief, exc, repair_attempt + 1)
+            if stage_name == "Plan validation":
+                plan_payload.clear()
+                plan_payload.update(repair_payload)
+    assert last_error is not None
+    raise last_error
+
+
 async def stage_environment_preflight(project_brief: str) -> Dict[str, Any]:
     log_step("Stage 1/7: Environment preflight")
     ensure_dirs()
@@ -1255,7 +1491,15 @@ async def stage_planning(project_brief: str) -> Dict[str, Any]:
 async def stage_plan_validation(plan_payload: Dict[str, Any]) -> Dict[str, Any]:
     log_step("Stage 3/7: Plan validation")
     normalized_plan = normalize_plan(plan_payload)
-    report = validate_plan(normalized_plan)
+    try:
+        report = validate_plan(normalized_plan)
+    except Exception as exc:
+        raise RepairableStageError(
+            stage_name="Plan validation",
+            failure_kind="plan_validation_failed",
+            detail={"error": str(exc), "plan_payload": normalized_plan},
+            original_error=exc,
+        ) from exc
     write_text(PLAN_JSON, json.dumps(normalized_plan, indent=2))
     write_text(
         REPORTS_DIR / "plan_validation.json",
@@ -1282,53 +1526,97 @@ async def stage_implementation(
     helper_result: Optional[WorkerResult] = None
     main_result: WorkerResult
 
-    if helper_task and helper_task.get("run_mode") == "parallel":
-        helper_future = asyncio.create_task(
-            run_worker(
-                "Helper Worker",
-                helper_task,
-                project_brief,
-                plan_payload,
-                WORKTREES_DIR / "helper_worker",
-                keep_worktrees,
+    try:
+        if helper_task and helper_task.get("run_mode") == "parallel":
+            helper_future = asyncio.create_task(
+                run_worker(
+                    "Helper Worker",
+                    helper_task,
+                    project_brief,
+                    plan_payload,
+                    WORKTREES_DIR / "helper_worker",
+                    keep_worktrees,
+                )
             )
-        )
-        main_result, helper_result = await asyncio.gather(main_future, helper_future)
-    else:
-        main_result = await main_future
-        if helper_task:
-            helper_result = await run_worker(
-                "Helper Worker",
-                helper_task,
-                project_brief,
-                plan_payload,
-                WORKTREES_DIR / "helper_worker",
-                keep_worktrees,
-            )
+            main_result, helper_result = await asyncio.gather(main_future, helper_future)
+        else:
+            main_result = await main_future
+            if helper_task:
+                helper_result = await run_worker(
+                    "Helper Worker",
+                    helper_task,
+                    project_brief,
+                    plan_payload,
+                    WORKTREES_DIR / "helper_worker",
+                    keep_worktrees,
+                )
+    except Exception as exc:
+        raise RepairableStageError(
+            stage_name="Implementation",
+            failure_kind="implementation_failure",
+            detail={
+                "error": str(exc),
+                "main_task_summary": main_task.get("summary", ""),
+                "helper_task_summary": helper_task.get("summary", "") if helper_task else "",
+                "decision_log_tail": read_jsonl_tail(DECISION_LOG, limit=12),
+                "workspace_snapshot_sample": sorted(snapshot_workspace(ROOT).keys())[:200],
+            },
+            original_error=exc,
+        ) from exc
 
     results = {
         "status": "completed" if main_result.final_status == "completed" and (helper_result is None or helper_result.final_status == "completed") else "blocked",
         "workers": [asdict(main_result)] + ([asdict(helper_result)] if helper_result else []),
     }
     write_text(REPORTS_DIR / "implementation_results.json", json.dumps(results, indent=2))
+    if results["status"] != "completed":
+        raise RepairableStageError(
+            stage_name="Implementation",
+            failure_kind="implementation_blocked",
+            detail={"error": "Implementation worker returned blocked status", "results": results},
+        )
     return results
 
 
 async def stage_build_validation(plan_payload: Dict[str, Any]) -> Dict[str, Any]:
     log_step("Stage 5/7: Blocking build validation")
-    report = await run_proofs(plan_payload["build_proofs"], "build_validation")
+    try:
+        report = await run_proofs(plan_payload["build_proofs"], "build_validation")
+    except Exception as exc:
+        raise RepairableStageError(
+            stage_name="Blocking build validation",
+            failure_kind="build_validation_execution_error",
+            detail={"error": str(exc), "proofs": plan_payload.get("build_proofs", [])},
+            original_error=exc,
+        ) from exc
     write_text(REPORTS_DIR / "build_validation.json", json.dumps(report, indent=2))
     if report["status"] != "passed":
-        raise RuntimeError("Blocking build validation failed")
+        raise RepairableStageError(
+            stage_name="Blocking build validation",
+            failure_kind="build_validation_failed",
+            detail={"error": "Blocking build validation failed", "report": report},
+        )
     return report
 
 
 async def stage_runtime_validation(plan_payload: Dict[str, Any]) -> Dict[str, Any]:
     log_step("Stage 6/7: Blocking runtime validation")
-    report = await run_proofs(plan_payload["runtime_proofs"], "runtime_validation")
+    try:
+        report = await run_proofs(plan_payload["runtime_proofs"], "runtime_validation")
+    except Exception as exc:
+        raise RepairableStageError(
+            stage_name="Blocking runtime validation",
+            failure_kind="runtime_validation_execution_error",
+            detail={"error": str(exc), "proofs": plan_payload.get("runtime_proofs", [])},
+            original_error=exc,
+        ) from exc
     write_text(REPORTS_DIR / "runtime_validation.json", json.dumps(report, indent=2))
     if report["status"] != "passed":
-        raise RuntimeError("Blocking runtime validation failed")
+        raise RepairableStageError(
+            stage_name="Blocking runtime validation",
+            failure_kind="runtime_validation_failed",
+            detail={"error": "Blocking runtime validation failed", "report": report},
+        )
     return report
 
 
@@ -1436,28 +1724,48 @@ async def main() -> None:
         plan_payload = load_json_file(PLAN_JSON)
 
     if resume_stage_index <= 3:
-        await stage_plan_validation(plan_payload)
+        await execute_stage_with_repairs(
+            "Plan validation",
+            plan_payload,
+            project_brief,
+            lambda: stage_plan_validation(plan_payload),
+        )
         write_manifest(3, REQUIRED_STAGE_NAMES[2], "Plan validation complete")
         write_checkpoint(3, REQUIRED_STAGE_NAMES[2], "Plan validation complete", project_brief_path)
     else:
         log_step("Resume skip: Stage 3/7: Plan validation")
 
     if resume_stage_index <= 4:
-        await stage_implementation(project_brief, plan_payload, args.keep_worktrees)
+        await execute_stage_with_repairs(
+            "Implementation",
+            plan_payload,
+            project_brief,
+            lambda: stage_implementation(project_brief, plan_payload, args.keep_worktrees),
+        )
         write_manifest(4, REQUIRED_STAGE_NAMES[3], "Implementation complete")
         write_checkpoint(4, REQUIRED_STAGE_NAMES[3], "Implementation complete", project_brief_path)
     else:
         log_step("Resume skip: Stage 4/7: Implementation")
 
     if resume_stage_index <= 5:
-        await stage_build_validation(plan_payload)
+        await execute_stage_with_repairs(
+            "Blocking build validation",
+            plan_payload,
+            project_brief,
+            lambda: stage_build_validation(plan_payload),
+        )
         write_manifest(5, REQUIRED_STAGE_NAMES[4], "Build validation complete")
         write_checkpoint(5, REQUIRED_STAGE_NAMES[4], "Build validation complete", project_brief_path)
     else:
         log_step("Resume skip: Stage 5/7: Blocking build validation")
 
     if resume_stage_index <= 6:
-        await stage_runtime_validation(plan_payload)
+        await execute_stage_with_repairs(
+            "Blocking runtime validation",
+            plan_payload,
+            project_brief,
+            lambda: stage_runtime_validation(plan_payload),
+        )
         write_manifest(6, REQUIRED_STAGE_NAMES[5], "Runtime validation complete")
         write_checkpoint(6, REQUIRED_STAGE_NAMES[5], "Runtime validation complete", project_brief_path)
     else:

@@ -218,6 +218,8 @@ Required technical direction from the source brief:
 
 The application must run in a modern browser and should require no downloads for end users beyond normal web access.
 
+- you are only allowed to create next.js, react front ends ans SQLite backends. Do not use Vite!
+
 Accessibility requirements:
 
 - keyboard navigation for major controls

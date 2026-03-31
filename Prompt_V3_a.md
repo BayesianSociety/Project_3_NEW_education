@@ -14,6 +14,7 @@ The outer Python process exists for operational control:
 - resumable overnight jobs
 - crash isolation
 - strict filesystem policy enforcement
+- bounded semantic self-repair after failed implementation or validation stages
 - launching one isolated worker only when there is a genuinely disjoint task
 
 Do not use the OpenAI API or Codex SDK.
@@ -95,6 +96,20 @@ Each Codex execution must run as a subprocess so the parent Python process can:
 - classify and record failures
 - retry only clearly retryable infrastructure failures
 - keep the run state intact even if a child execution fails
+
+## 3b. Bounded semantic self-repair
+
+The orchestrator must also support bounded semantic repair loops for failures that are not mere transport problems.
+
+Requirements:
+
+- Stage 3 plan validation, Stage 4 implementation, Stage 5 build validation, and Stage 6 runtime validation must be able to enter a repair loop
+- when one of those stages fails, the orchestrator must capture structured failure context and invoke a repair `codex exec` run
+- the repair worker must patch repository state or repair the plan, not just explain the issue
+- after a repair attempt, the orchestrator must rerun the failed stage
+- semantic repair attempts must be bounded by a small configurable limit
+- if the repair budget is exhausted, the run must fail loudly with preserved context
+- repeated identical failure causes should not loop forever
 
 ## 4. Strict filesystem policy
 
@@ -232,6 +247,8 @@ The orchestrator must not report success merely because:
 
 It must report success only when all blocking proofs in the plan pass.
 
+Validation failures in Stage 5 or Stage 6 must not immediately abort the run if bounded semantic repair is still available. The orchestrator should first attempt repair, then rerun the failed validation stage, and only fail once the repair budget is exhausted.
+
 # Execution engine requirements
 
 All Codex calls must go through one common execution path that:
@@ -245,6 +262,8 @@ All Codex calls must go through one common execution path that:
 - enforces timeouts
 
 The orchestrator must surface structured error payloads when available rather than relying only on generic stderr text.
+
+The implementation should also define a common repair execution path for semantic failures so that Stage 3-6 can reuse the same bounded repair mechanism.
 
 # Worktree policy
 
@@ -272,6 +291,21 @@ The main worker and optional helper must be instructed to:
 
 If a task is frontend-oriented, the worker prompt should explicitly require use of `frontend-skill`.
 
+# Prompting rules for repair workers
+
+The orchestrator must define a dedicated repair prompt for semantic failures.
+
+Repair workers must be instructed to:
+
+- fix the repository state directly rather than only describe the problem
+- use the exact failed stage name, failure kind, stderr or traceback, and relevant artifacts as context
+- stay inside the normalized editable scope unless the repair is specifically a plan repair
+- make the smallest durable change that unblocks the failed stage
+- use multiple internal subagents when materially helpful
+- return a structured JSON result describing what changed, the root cause, and whether follow-up is still required
+
+For plan-validation failures, the repair path must regenerate a corrected plan JSON rather than patching app files.
+
 # Suggested output schema shapes
 
 ## Plan schema
@@ -298,6 +332,17 @@ The worker result schema should include:
 - `summary`
 - `blockers`
 
+## Repair result schema
+
+The repair result schema should include:
+
+- `final_status`
+- `changed_files`
+- `summary`
+- `root_cause`
+- `followup_required`
+- `blockers`
+
 # Failure handling
 
 The orchestrator may retry only clearly retryable infrastructure failures such as:
@@ -308,11 +353,30 @@ The orchestrator may retry only clearly retryable infrastructure failures such a
 
 It must not silently retry semantic failures indefinitely.
 
+Instead, it must handle semantic failures with an explicit bounded repair loop.
+
+The implementation should classify and persist at least these families of failures:
+
+- retryable infrastructure failures
+- plan validation failures
+- implementation failures
+- build validation failures
+- runtime validation failures
+- filesystem policy failures
+
 All failures must be persisted in logs or reports with:
 
 - stage
 - error summary
 - timestamp
+
+Repair attempts must also be persisted with:
+
+- failed stage
+- repair attempt number
+- failure classification
+- repair result summary
+- usage when available
 
 # Final expectation
 
