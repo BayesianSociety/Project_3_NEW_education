@@ -297,6 +297,8 @@ The exact shell commands are not fixed in this brief and should be chosen to mat
 
 ## Visual Style Requirements
 
+Use the Frontend Skill to create beautiful frontends.
+
 The product must present a clear, original visual identity suited to a beginner-friendly educational game.
 
 The visual direction must be:
