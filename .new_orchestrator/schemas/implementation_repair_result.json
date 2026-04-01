@@ -1,0 +1,46 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "final_status",
+    "changed_files",
+    "summary",
+    "root_cause",
+    "followup_required",
+    "blockers"
+  ],
+  "properties": {
+    "final_status": {
+      "type": "string",
+      "enum": [
+        "completed",
+        "blocked"
+      ]
+    },
+    "changed_files": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "summary": {
+      "type": "string",
+      "minLength": 3
+    },
+    "root_cause": {
+      "type": "string",
+      "minLength": 3
+    },
+    "followup_required": {
+      "type": "boolean"
+    },
+    "blockers": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 3
+      }
+    }
+  }
+}

@@ -187,6 +187,8 @@ The main task must include:
 
 For frontend-oriented or Next.js work, the owned paths must also include standard framework support files when they may be created or updated, especially `eslint.config.mjs`, `next-env.d.ts`, and `package-lock.json`.
 
+The implementation should also normalize or reject banned proof commands before validation succeeds. If a generated or repaired plan includes a banned install proof, the orchestrator should remove or replace it and update `acceptance_criteria` references accordingly.
+
 ## Optional helper task
 
 If present, the helper task must include:
@@ -301,10 +303,14 @@ Repair workers must be instructed to:
 - use the exact failed stage name, failure kind, stderr or traceback, and relevant artifacts as context
 - stay inside the normalized editable scope unless the repair is specifically a plan repair
 - make the smallest durable change that unblocks the failed stage
+- not hide dependency installation inside unrelated scripts such as `lint`, `build`, `dev`, `start`, `prelint`, or `prebuild`
+- not add bootstrap hooks that run package-manager install commands during validation proofs
 - use multiple internal subagents when materially helpful
 - return a structured JSON result describing what changed, the root cause, and whether follow-up is still required
 
 For plan-validation failures, the repair path must regenerate a corrected plan JSON rather than patching app files.
+
+The plan-repair prompt must explicitly restate the banned-proof rule and name the banned install commands, including `npm install` and `npm ci`, so the repair path cannot oscillate between equivalent invalid proofs.
 
 # Suggested output schema shapes
 
@@ -363,6 +369,10 @@ The implementation should classify and persist at least these families of failur
 - build validation failures
 - runtime validation failures
 - filesystem policy failures
+
+Plan-repair logic must not bounce between different banned install proofs. Equivalent invalid commands should be treated as the same class of error and repaired deterministically.
+
+Timeout handling for local proof commands must fully reap killed subprocesses before returning, so timed-out validations do not emit event-loop-closed warnings during interpreter shutdown.
 
 All failures must be persisted in logs or reports with:
 

@@ -1,0 +1,21 @@
+{
+  "status": "valid",
+  "details": {
+    "status": "valid",
+    "proof_names": [
+      "Build",
+      "Lint",
+      "Logic Tests",
+      "Runtime Smoke",
+      "Telemetry Tests"
+    ],
+    "blocking_proofs": [
+      "Build",
+      "Lint",
+      "Logic Tests",
+      "Runtime Smoke",
+      "Telemetry Tests"
+    ]
+  },
+  "normalized": true
+}

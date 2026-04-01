@@ -1,0 +1,186 @@
+{
+  "stage_index": 7,
+  "stage_name": "Final acceptance summary",
+  "note": "Final summary complete",
+  "generated_at": "2026-04-01T07:35:28.863016+00:00",
+  "workspace_root": "/home/postnl/multi-agent-producer_V0/Project_3_NEW_education",
+  "snapshot_sha256": "81637236dee67b32ce119b0203c68bc7cb94c5f4c1d4583346128747bf69ab95",
+  "files": {
+    "tsconfig.scripts.json": {
+      "sha256": "cd0f6ef5b02bc8581eff86fc31bb5984836825ce7b4943f794ceb59f1f201da5",
+      "size": 160
+    },
+    "package-lock.json": {
+      "sha256": "493034f2377ebe3357cd963e29fcec932341d6fc91ff4461e3b278211cffc2ed",
+      "size": 302467
+    },
+    ".gitignore": {
+      "sha256": "4d56952b0fb13bf8f9b6c13a6d4c34a075bac3af447636a1df4335d7576e2f97",
+      "size": 14
+    },
+    "package.json": {
+      "sha256": "89448fa9d7bf81d132e100cfaaaf725adc0a5cd86e47a29e5651de3f9e3a05c3",
+      "size": 2018
+    },
+    "Project_description.md": {
+      "sha256": "17c522ba1b145c52cf4e76dfe3a1effd1b3e08e6a439e5a68809593b555376d8",
+      "size": 16403
+    },
+    "README.md": {
+      "sha256": "8a309fe65f34ce31103565a32a6083ae7be77c7a035ebf5824de58bea3fa76a6",
+      "size": 6408
+    },
+    "tsconfig.tsbuildinfo": {
+      "sha256": "512caeb9c7dc9126b372ab87270d97b9c8f3b9a0fafdbaee5eeb9eb9450c2eff",
+      "size": 359114
+    },
+    "Chat.md": {
+      "sha256": "b3cda4071b00adbbbb06872ccf9ea41082fef8c8468275bbf3e1dae2df31adf7",
+      "size": 17972
+    },
+    "Retrospection.md": {
+      "sha256": "794667529b352ea4c5768da9fde7767ea940a48b0cddfb9f69193809fa57189b",
+      "size": 5415
+    },
+    "tsconfig.json": {
+      "sha256": "595dc945488a751dad6eef3e0f5919c1b230507ca44a2097f9e96b646cdec421",
+      "size": 871
+    },
+    "next.config.mjs": {
+      "sha256": "32286e36696bc7c2940bdc069f4e43273d0baab1f607d1db33ed88024d23b54d",
+      "size": 196
+    },
+    "game.png": {
+      "sha256": "7dcdc2169f921b83b771fb62a206aa29f8bd2e209176e4bb2d9c9f60e1bfc2ad",
+      "size": 559055
+    },
+    "next-env.d.ts": {
+      "sha256": "7b550dda9686c16f36a17bf9051d5dbf31e98555b30d114ac49fc49a1e712651",
+      "size": 247
+    },
+    "eslint.config.mjs": {
+      "sha256": "a0b20f1a1a20f68aed3b0a46b50cdcef1361c4a4463f7f52a71f13619970112b",
+      "size": 175
+    },
+    "Prompt_V3_a.md": {
+      "sha256": "ee4e699c3a3caf6c5d5cbe92be2aa90e6f0b66b0a111279dd983c95c31a6de26",
+      "size": 13362
+    },
+    "new_orchestrator.py": {
+      "sha256": "f6a6c4c51876e672eac983387c9b15eb2eaee35fc41978b2524dce30c46ca47a",
+      "size": 68616
+    },
+    "data/blockLibrary.ts": {
+      "sha256": "fdac4e7d8f57f2f6f0224856768674504d666a59835285f25d0508122ed4a481",
+      "size": 2673
+    },
+    "data/puzzles.ts": {
+      "sha256": "6a38a905ea745f20e63db29afedd362ed99531602e0d8f246560ec89cd044d5e",
+      "size": 5280
+    },
+    "scripts/verifyRuntime.ts": {
+      "sha256": "d3956f83649385224f2271bc2cdf93695c8ea83890daa43194f0fa8c5db8aadb",
+      "size": 1805
+    },
+    "scripts/seedDb.ts": {
+      "sha256": "2b60a9c699dd16307d35f807a8bb5f1b1ff61cf6e8b599771832b17585d65eaf",
+      "size": 972
+    },
+    "scripts/testLogic.ts": {
+      "sha256": "f9ce3bd0f8a21898e09c22b0f651c5fbfe1af73935740fd464e119181557d56d",
+      "size": 1795
+    },
+    "scripts/testTelemetry.ts": {
+      "sha256": "6658030b827556bd3eaebcd40127dbce8ad17e024ed889c8fea289ab128acff4",
+      "size": 1683
+    },
+    "lib/db.ts": {
+      "sha256": "d9727c6cf128969cdafe72a01c458ab66a54ef19e78772bbbbbf056612411dc2",
+      "size": 3202
+    },
+    "lib/telemetry.ts": {
+      "sha256": "b4e02fde24769ba4448624531cbcffa86f5da127d06674cadb12aac95515db29",
+      "size": 15881
+    },
+    "lib/blockEngine.ts": {
+      "sha256": "21cbd411d4e1151e34994ae5c6a0f7d50abeff94668f6a65c9f6364c769b4473",
+      "size": 7550
+    },
+    "app/globals.css": {
+      "sha256": "e09b3271a192d03c40a212ee50d938a53d43106d97e533066fecd3329eef894f",
+      "size": 1899
+    },
+    "app/layout.tsx": {
+      "sha256": "29814dc07a9af17c61c2cf350f9f2b2c738147153a6f2561cff96134ec4a3402",
+      "size": 612
+    },
+    "app/page.tsx": {
+      "sha256": "489da21b8874342ee898b0a9f0bb4a2c324d1ee3d681105c8b5377bc9648ad2a",
+      "size": 4757
+    },
+    "app/(game)/levels/[id]/page.tsx": {
+      "sha256": "5af60dbdd774fc3e3fba68724aef4ccf35d9b1ecfe9bb1e07f2c1eceb2982c63",
+      "size": 405
+    },
+    "app/api/analytics/[view]/route.ts": {
+      "sha256": "f60dc2f8cde710abc0e008a03d2a36a90253baa6c94854bbe8c8388a604c4504",
+      "size": 1487
+    },
+    "app/api/session/start/route.ts": {
+      "sha256": "774ad61df5ab6b8946caf35bc6883632e93db95f184d94f3c4a94c8114863561",
+      "size": 918
+    },
+    "app/api/session/end/route.ts": {
+      "sha256": "89546157c7a34f6bc0b4984c30ae77a165ed8bbcaf2bef850159b5ce4736091f",
+      "size": 836
+    },
+    "app/api/events/batch/route.ts": {
+      "sha256": "f2d05c693e8580ab7b12f48588191ee5f791ad5054b130a56ec24612a048db39",
+      "size": 3786
+    },
+    "app/(analytics)/analytics/page.tsx": {
+      "sha256": "c4027b08590a8f2654f0eb8e7c300d20483611c658e3a76519e7afff645c505f",
+      "size": 202
+    },
+    "components/GameScene.tsx": {
+      "sha256": "1c47bbf8a3db097e52a3f96331963eaa590236c44d42215da8e72f4139166f1f",
+      "size": 3674
+    },
+    "components/BlockWorkspace.tsx": {
+      "sha256": "8f8204fdca6098ab3b50b3993c8439d3417c7d02fe791a68266dd6dfd7fb7c91",
+      "size": 11918
+    },
+    "components/PuzzleExperience.tsx": {
+      "sha256": "6030f40faa2b0798b3bb94921c43f579fee1741883fc52e9d40ac8d3b99c3282",
+      "size": 12765
+    },
+    "components/AnalyticsBoard.tsx": {
+      "sha256": "dcf210ba5b0d10ad4952e114e2b8cf285ec062bd66f11551538dc1e97ef926c8",
+      "size": 7496
+    },
+    "public/assets/sprites/obstacle.png": {
+      "sha256": "f30145007f8fe82dbf4332fe3c773fe9ee9d384dc18e36c3af4c56fefe6d03bc",
+      "size": 690
+    },
+    "public/assets/sprites/main_character.png": {
+      "sha256": "4b5ace207b9656b51a39b788dbc5ef9c95f50d4f4ce8ad98db9edb958413a460",
+      "size": 6899
+    },
+    "public/assets/sprites/food.png": {
+      "sha256": "6fd4817c5aeff9e4b2785e9a120b7dc721b1191b284cb9828494868e8c55bd96",
+      "size": 12503
+    },
+    "public/assets/sprites/place.png": {
+      "sha256": "ae7f8f9ff243fbb1c571a30b8af665224d93da8a986025c66ecc9ebb5275dfa3",
+      "size": 7777
+    },
+    "public/assets/backgrounds/background.jpg": {
+      "sha256": "4febec01f56cdb1df55bee6341293aa25a3d895c497768bc0220d4b883a7cac4",
+      "size": 586164
+    },
+    "design/layout_refs/layout.png": {
+      "sha256": "f6b4d8065330c0342893d85b0c6689be5cfb9f8b2b1c1a60c584c461683c1b03",
+      "size": 1073447
+    }
+  }
+}

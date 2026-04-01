@@ -1,0 +1,131 @@
+{
+  "task_summary": "Implement the Block Coding Puzzles Next.js 16 application with drag-and-drop block gameplay, SQLite telemetry, and analytics dashboards per the project brief and frontend skill.",
+  "project_brief_path": "Project_description.md",
+  "implementation_mode": {
+    "mode": "single_worker",
+    "rationale": "The gameplay, backend telemetry, and analytics layers are tightly coupled, so one worker can maintain consistent architecture and styling decisions end-to-end."
+  },
+  "main_task": {
+    "summary": "Stand up a Next.js 16 TypeScript app delivering the block-coding puzzles, animated scenes guided by the provided layout, telemetry-backed API routes, SQLite schema/init, analytics dashboards, and supporting scripts/tests.",
+    "owned_paths": [
+      "package.json",
+      "package-lock.json",
+      "tsconfig.json",
+      "next.config.mjs",
+      "next-env.d.ts",
+      "app/**",
+      "components/**",
+      "lib/**",
+      "data/**",
+      "scripts/**",
+      "styles/**",
+      "eslint.config.mjs",
+      "README.md"
+    ],
+    "required_outputs": [
+      "package.json",
+      "package-lock.json",
+      "tsconfig.json",
+      "next.config.mjs",
+      "app/layout.tsx",
+      "app/page.tsx",
+      "app/(game)/levels/[id]/page.tsx",
+      "app/(analytics)/analytics/page.tsx",
+      "app/api/session/start/route.ts",
+      "app/api/session/end/route.ts",
+      "app/api/events/batch/route.ts",
+      "app/api/analytics/[view]/route.ts",
+      "lib/db.ts",
+      "lib/telemetry.ts",
+      "lib/blockEngine.ts",
+      "data/puzzles.ts",
+      "data/blockLibrary.ts",
+      "scripts/seedDb.ts",
+      "README.md"
+    ],
+    "read_only_inputs": [
+      "Project_description.md",
+      "design/layout_refs/layout.png",
+      "public/assets/backgrounds/*",
+      "public/assets/sprites/*"
+    ],
+    "forbidden_paths": [
+      "new_orchestrator.py",
+      ".codex"
+    ],
+    "validation_focus": [
+      "Exactly 3 puzzles with progression and block workspace",
+      "Failure feedback with hints covering required reasons",
+      "SQLite auto-initialization with users/sessions/puzzles/attempts/events/movements/puzzle_progress tables",
+      "Telemetry rows persisted for attempts/events/movements",
+      "Analytics dashboard can replay stored runs",
+      "WebGL-quality scene assembly matching layout reference",
+      "Accessibility and control requirements (Play/Reset/speed, keyboard focus, Show Code toggle)"
+    ]
+  },
+  "helper_tasks": [],
+  "build_proofs": [
+    {
+      "name": "Lint",
+      "command": "npm run lint",
+      "blocking": true
+    },
+    {
+      "name": "Logic Tests",
+      "command": "npm run test:logic",
+      "blocking": true
+    },
+    {
+      "name": "Telemetry Tests",
+      "command": "npm run test:telemetry",
+      "blocking": true
+    },
+    {
+      "name": "Build",
+      "command": "npm run build",
+      "blocking": true
+    }
+  ],
+  "runtime_proofs": [
+    {
+      "name": "Runtime Smoke",
+      "command": "npm run verify:runtime",
+      "blocking": true
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "requirement": "Exactly 3 puzzles with progression and block workspace per spec",
+      "proof_names": [
+        "Lint",
+        "Logic Tests",
+        "Build"
+      ],
+      "blocking": true
+    },
+    {
+      "requirement": "Telemetry persistence (attempts/events/movements) and SQLite auto-init",
+      "proof_names": [
+        "Telemetry Tests",
+        "Build"
+      ],
+      "blocking": true
+    },
+    {
+      "requirement": "Analytics dashboard reads and replays stored runs",
+      "proof_names": [
+        "Logic Tests",
+        "Telemetry Tests",
+        "Build"
+      ],
+      "blocking": true
+    },
+    {
+      "requirement": "App boots without runtime errors",
+      "proof_names": [
+        "Runtime Smoke"
+      ],
+      "blocking": true
+    }
+  ]
+}

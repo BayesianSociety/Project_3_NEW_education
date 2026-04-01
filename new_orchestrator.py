@@ -375,8 +375,21 @@ async def run_command(args: Sequence[str], cwd: Path = ROOT, timeout: int = 120)
     try:
         stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
     except asyncio.TimeoutError:
-        proc.kill()
-        raise RuntimeError(f"Timed out running command: {' '.join(shlex.quote(part) for part in args)}")
+        with contextlib.suppress(ProcessLookupError):
+            proc.kill()
+        try:
+            stdout, stderr = await proc.communicate()
+        except Exception:
+            stdout = b""
+            stderr = b""
+        command_text = " ".join(shlex.quote(part) for part in args)
+        stdout_text = stdout.decode("utf-8", errors="replace")[-1000:]
+        stderr_text = stderr.decode("utf-8", errors="replace")[-1000:]
+        detail = f"Timed out running command: {command_text}"
+        tails = " | ".join(part for part in [stdout_text.strip(), stderr_text.strip()] if part)
+        if tails:
+            detail = f"{detail} | output_tail: {tails}"
+        raise RuntimeError(detail)
     return proc.returncode, stdout.decode("utf-8", errors="replace"), stderr.decode("utf-8", errors="replace")
 
 
@@ -912,6 +925,32 @@ def normalize_plan(plan: Dict[str, Any]) -> Dict[str, Any]:
             normalize_task_scope(task) if isinstance(task, dict) else task
             for task in helper_tasks
         ]
+    banned_proof_names: set[str] = set()
+    for bucket in ("build_proofs", "runtime_proofs"):
+        entries = normalized.get(bucket, [])
+        if not isinstance(entries, list):
+            continue
+        filtered_entries: List[Dict[str, Any]] = []
+        for entry in entries:
+            if not isinstance(entry, dict):
+                continue
+            command = str(entry.get("command", "")).strip().lower()
+            if any(pattern in command for pattern in BANNED_INSTALL_PATTERNS):
+                name = str(entry.get("name", "")).strip()
+                if name:
+                    banned_proof_names.add(name)
+                continue
+            filtered_entries.append(entry)
+        normalized[bucket] = filtered_entries
+    if banned_proof_names:
+        acceptance = normalized.get("acceptance_criteria", [])
+        if isinstance(acceptance, list):
+            for item in acceptance:
+                if not isinstance(item, dict):
+                    continue
+                proof_names = item.get("proof_names", [])
+                if isinstance(proof_names, list):
+                    item["proof_names"] = [name for name in proof_names if name not in banned_proof_names]
     return normalized
 
 
@@ -987,6 +1026,8 @@ Rules:
 - stay inside the editable scope below
 - do not modify read-only inputs
 - make the smallest durable changes needed to unblock the failed stage
+- do not satisfy missing dependency or missing CLI errors by embedding implicit installs into unrelated scripts such as `lint`, `build`, `dev`, `start`, `prelint`, or `prebuild`
+- do not add hidden bootstrap hooks that run package-manager install commands during validation proofs
 - use multiple internal subagents when it materially helps
 - return only JSON matching the required schema
 
@@ -1023,6 +1064,9 @@ Rules:
 - keep the architecture simple: one main worker by default, at most one helper
 - preserve the original task intent unless the failure forces a narrower or clearer scope
 - ensure required_outputs are covered by owned_paths
+- do not use install commands as proofs
+- banned proof commands include `npm install`, `npm ci`, `pnpm install`, `yarn install`, and `bun install`
+- if the invalid plan contains a banned proof command, remove or replace that proof and update acceptance_criteria references accordingly
 - for frontend or Next.js work, include standard framework support files in owned_paths when they may be created or updated, especially `eslint.config.mjs`, `next-env.d.ts`, and `package-lock.json`
 
 Repair attempt:

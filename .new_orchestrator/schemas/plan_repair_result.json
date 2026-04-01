@@ -1,0 +1,256 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "task_summary",
+    "project_brief_path",
+    "implementation_mode",
+    "main_task",
+    "helper_tasks",
+    "build_proofs",
+    "runtime_proofs",
+    "acceptance_criteria"
+  ],
+  "properties": {
+    "task_summary": {
+      "type": "string",
+      "minLength": 10
+    },
+    "project_brief_path": {
+      "type": "string",
+      "const": "Project_description.md"
+    },
+    "implementation_mode": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mode",
+        "rationale"
+      ],
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": [
+            "single_worker",
+            "single_worker_with_helper"
+          ]
+        },
+        "rationale": {
+          "type": "string",
+          "minLength": 10
+        }
+      }
+    },
+    "main_task": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "summary",
+        "owned_paths",
+        "required_outputs",
+        "read_only_inputs",
+        "forbidden_paths",
+        "validation_focus"
+      ],
+      "properties": {
+        "summary": {
+          "type": "string",
+          "minLength": 10
+        },
+        "owned_paths": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1
+        },
+        "required_outputs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 3
+          },
+          "minItems": 1
+        },
+        "read_only_inputs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "forbidden_paths": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "validation_focus": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 3
+          },
+          "minItems": 1
+        }
+      }
+    },
+    "helper_tasks": {
+      "type": "array",
+      "maxItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "summary",
+          "owned_paths",
+          "required_outputs",
+          "read_only_inputs",
+          "forbidden_paths",
+          "validation_focus",
+          "run_mode",
+          "isolation_rationale"
+        ],
+        "properties": {
+          "summary": {
+            "type": "string",
+            "minLength": 10
+          },
+          "owned_paths": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "minItems": 1
+          },
+          "required_outputs": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 3
+            },
+            "minItems": 1
+          },
+          "read_only_inputs": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "forbidden_paths": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "validation_focus": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 3
+            },
+            "minItems": 1
+          },
+          "run_mode": {
+            "type": "string",
+            "enum": [
+              "parallel",
+              "after_main"
+            ]
+          },
+          "isolation_rationale": {
+            "type": "string",
+            "minLength": 10
+          }
+        }
+      }
+    },
+    "build_proofs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "command",
+          "blocking"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 3
+          },
+          "command": {
+            "type": "string",
+            "minLength": 3
+          },
+          "blocking": {
+            "type": "boolean"
+          }
+        }
+      },
+      "minItems": 1
+    },
+    "runtime_proofs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "command",
+          "blocking"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 3
+          },
+          "command": {
+            "type": "string",
+            "minLength": 3
+          },
+          "blocking": {
+            "type": "boolean"
+          }
+        }
+      },
+      "minItems": 1
+    },
+    "acceptance_criteria": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "requirement",
+          "proof_names",
+          "blocking"
+        ],
+        "properties": {
+          "requirement": {
+            "type": "string",
+            "minLength": 10
+          },
+          "proof_names": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 3
+            },
+            "minItems": 1
+          },
+          "blocking": {
+            "type": "boolean"
+          }
+        }
+      },
+      "minItems": 3
+    }
+  }
+}

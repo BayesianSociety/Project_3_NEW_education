@@ -1,0 +1,10 @@
+{
+  "model": "gpt-5.1-codex",
+  "sandbox_mode": "workspace-write",
+  "approval_policy": "never",
+  "workspace_root": "/home/postnl/multi-agent-producer_V0/Project_3_NEW_education",
+  "timeout_policy_seconds": 1800,
+  "project_brief_path": "Project_description.md",
+  "state_dir": ".new_orchestrator",
+  "keep_worktrees": false
+}
